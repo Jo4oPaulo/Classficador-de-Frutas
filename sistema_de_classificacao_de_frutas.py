@@ -42,40 +42,40 @@ from sklearn.model_selection import train_test_split
 from google.colab import drive
 drive.mount('/content/drive')
 
-import kagglehub
+import requests, zipfile, io, os
 
-# Download latest version
+url = "https://raw.githubusercontent.com/Jo4oPaulo/Classficador-de-Frutas/main/frutas.zip"
 
-dataset_dir = "./kagglehub/fruit-classification10-class"
-os.makedirs(dataset_dir, exist_ok=True)
+# Faz o download
+response = requests.get(url)
+response.raise_for_status()
 
-try:
-  path = kagglehub.dataset_download(
-    "karimabdulnabi/fruit-classification10-class",
-    path=dataset_dir)
-  print("Path to dataset files:", path)
-except (ValueError) as err:
-  print(err)
+extract_path = "frutas"
+os.makedirs(extract_path, exist_ok=True)
 
-import os
-import cv2
-import os
-import numpy as np
+# Descompacta direto da memória
+with zipfile.ZipFile(io.BytesIO(response.content)) as zip_ref:
+    zip_ref.extractall(extract_path)
 
-fruits = {'Apple':0, 'orange':1, 'Banana':2}
-fruits_index_class = {0:'Apple',1: 'orange',2:'Banana'}
+print(f"Download concluído! Arquivos extraídos em: {extract_path}")
+
+# Categorizando
+fruits = {'apple':0, 'orange':1, 'banana':2}
+fruits_index_class = {0:'apple',1: 'orange',2:'banana'}
 
 
-TRAIN_PATH = '/kaggle/input/fruit-classification10-class/MY_data/train/'
+TRAIN_PATH = 'frutas/frutas/train/'
+TEST_PATH = 'frutas/frutas/test/'
+PREDICT_PATH = 'frutas/frutas/predict/'
 
 def load_images_from_folder(folder_path, img_size=(100, 100)):
     images = []
     labels = []
     class_names = []
 
-
     for class_name in os.listdir(folder_path):
         class_path = os.path.join(folder_path, class_name)
+        class_name = class_name.lower()
         if os.path.isdir(class_path):
             class_names.append(class_name)
             if class_name in fruits.keys():
@@ -90,11 +90,62 @@ def load_images_from_folder(folder_path, img_size=(100, 100)):
 
     return np.array(images), np.array(labels), class_names
 
-images, labels, class_names = load_images_from_folder(TRAIN_PATH)
+images_train, labels_train, _ = load_images_from_folder(TRAIN_PATH)
+images_test, labels_test, _ = load_images_from_folder(TEST_PATH)
 
-images = images / 255
-labels_normal = np.array( [fruits[x] for x in labels])
-X_train, X_test, y_train, y_test = train_test_split(images, labels_normal, test_size=0.2, random_state=42)
+# Categorizando
+fruits = {'apple':0, 'orange':1, 'banana':2}
+fruits_index_class = {0:'apple',1: 'orange',2:'banana'}
+
+
+TRAIN_PATH = 'frutas/frutas/train/'
+TEST_PATH = 'frutas/frutas/test/'
+PREDICT_PATH = 'frutas/frutas/predict/'
+
+def load_images_from_folder(folder_path, img_size=(100, 100)):
+    images = []
+    labels = []
+    class_names = []
+
+    for class_name in os.listdir(folder_path):
+        class_path = os.path.join(folder_path, class_name)
+        class_name = class_name.lower()
+        if os.path.isdir(class_path):
+            class_names.append(class_name)
+            if class_name in fruits.keys():
+              for filename in os.listdir(class_path):
+                  img_path = os.path.join(class_path, filename)
+                  img = cv2.imread(img_path)
+
+                  img = cv2.resize(img, img_size)
+                  img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Converter para RGB
+                  images.append(img)
+                  labels.append(class_name)
+
+    return np.array(images), np.array(labels), class_names
+
+images_train, labels_train, _ = load_images_from_folder(TRAIN_PATH)
+images_test, labels_test, _ = load_images_from_folder(TEST_PATH)
+
+def get_data():
+  train = images_train / 255
+  test = images_test / 255
+
+  l_train = np.array([fruits[x] for x in labels_train])
+  l_test = np.array([fruits[x] for x in labels_test])
+
+  return train, test, l_train, l_test,
+
+
+X_train, X_test, y_train, y_test = get_data()
+
+
+#images = images_train / 255
+#labels_normal = np.array( [fruits[x] for x in labels_train])
+#X_train, X_test, y_train, y_test = train_test_split(images, labels_normal, test_size=0.2, random_state=42)
+
+print(f"Train Shape:{X_train.shape}")
+print(f"Test Shape:{X_test.shape}")
 
 """# Apresentação do modelo de rede neural em Python"""
 
@@ -132,7 +183,7 @@ model.compile(
 
 """# Treinamento"""
 
-history = model.fit(X_train, y_train, epochs=55, batch_size=32)
+history = model.fit(X_train, y_train, epochs=42, batch_size=32)
 
 """# Predição"""
 
@@ -145,4 +196,4 @@ for (index, prediction) in enumerate(predictions):
   index_pred_class = np.argmax(prediction)
 
 
-  print(f"PRED: [{fruits_index_class[index_pred_class]}], REAL CLASS[{fruits_index_class[y_test[index]]}]")
+  print(f"PRED: [{fruits_index_class[index_pred_class]}], REAL CLASS[{fruits_index_class[y_test[index]]}]", "✅"if index_pred_class == y_test[index] else "❌")
